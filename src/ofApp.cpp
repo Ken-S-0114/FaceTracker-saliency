@@ -1,86 +1,85 @@
 #include "ofApp.h"
 using namespace ofxCv;
 
+ofxFaceTracker::Gesture gestureIds[] = {
+    ofxFaceTracker::MOUTH_WIDTH,
+    ofxFaceTracker::MOUTH_HEIGHT,
+    ofxFaceTracker::LEFT_EYEBROW_HEIGHT,
+    ofxFaceTracker::RIGHT_EYEBROW_HEIGHT,
+    ofxFaceTracker::LEFT_EYE_OPENNESS,
+    ofxFaceTracker::RIGHT_EYE_OPENNESS,
+    ofxFaceTracker::JAW_OPENNESS,
+    ofxFaceTracker::NOSTRIL_FLARE
+};
+
+string gestureNames[] = {
+    "mouthWidth",
+    "mouthHeight",
+    "leftEyebrowHeight",
+    "rightEyebrowHeight",
+    "leftEyeOpenness",
+    "rightEyeOpenness",
+    "jawOpenness",
+    "nostrilFlare"
+};
+
+int gestureCount = 8;
 //--------------------------------------------------------------
 void ofApp::setup(){
-    //画面基本設定
-    ofSetVerticalSync(true);
-    ofEnableAlphaBlending();
 
-    //カメラを初期化
-    cam.initGrabber(640, 480);
-
-    //合成するイメージのメモリ領域を確保して、読込み
-    faceImage.allocate(640, 480, OF_IMAGE_COLOR);
-    faceImage.load("写真の名前");
-    //カメラ映像のフェイストラッカーのセットアップ
+    video.load("sampleMovie.mov");
+//    video.play();
     tracker.setup();
-    //合成する顔画像のフェイストラッカーのセットアップ
-    imgTracker.setup();
+    tracker.setRescale(.25);
+    tracker.setIterations(100);
+    tracker.setClamp(10);
+    tracker.setTolerance(.5);
+    tracker.setAttempts(4);
 }
 
 //--------------------------------------------------------------
 void ofApp::update(){
-    //カメラ更新
-    cam.update();
-    if(cam.isFrameNew()) {
-        //フェイストラッカーの更新
-        imgTracker.update(toCv(faceImage));
-        tracker.update(toCv(cam));
+    video.update();
+    if(video.isFrameNew()) {
+        tracker.update(toCv(video));
+        trackedFrames.push_back(tracker.getImageMesh());
+        vector<float> curGesture;
+        for(int i = 0; i < gestureCount; i++) {
+            curGesture.push_back(tracker.getGesture(gestureIds[i]));
+        }
+        trackedGestures.push_back(curGesture);
+        video.nextFrame();
     }
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-    //カメラ映像を描画
-    ofSetColor(255);
-    cam.draw(0, 0);
-    //フレームレート表示
+    float scale = ofGetWidth() / video.getWidth();
+    ofScale(scale, scale);
+    video.draw(0, 0);
+    ofSetLineWidth(2);
+    tracker.draw();
     ofDrawBitmapString(ofToString((int) ofGetFrameRate()), 10, 20);
-
-    //もしカメラの映像に顔が検出されたら以下の処理をする
-    if(tracker.getFound()) {
-
-        //カメラ映像からメッシュを作成
-        ofMesh objectMesh = tracker.getObjectMesh();
-        //合成する顔の画像からメッシュを作成
-        ofMesh imgMesh = imgTracker.getObjectMesh();
-
-        //静止画のメッシュの頂点情報を、カメラから生成したメッシュのものに変換
-        //つまり現在の顔の表情を、静止画のメッシュに適用
-        for (int i = 0; i < objectMesh.getNumVertices(); i++) {
-            imgMesh.setVertex(i, objectMesh.getVertex(i));
-        }
-
-        //画面の3Dのパースをなしに
-        //        ofSetupScreenOrtho();
-        //        ofSetupScreenOrtho(640, 480, OF_ORIENTATION_DEFAULT, true, -1000, 1000);
-        //カメラで検出された顔の、位置、大きさ、傾きを取得
-        ofVec2f positon = tracker.getPosition();
-        float scale = tracker.getScale();
-        ofVec3f orientation = tracker.getOrientation();
-
-        //静止画のメッシュをカメラの位置、大きさ、傾きにあわせる
-        ofPushMatrix();
-        ofTranslate(positon.x, positon.y);
-        ofScale(scale, scale, scale);
-        ofRotateX(orientation.x * 45.0f);
-        ofRotateY(orientation.y * 45.0f);
-        ofRotateZ(orientation.z * 45.0f);
-
-        //静止画から生成メッシュを配置して、合成する画像をマッピング
-        ofSetColor(255, 255, 255, 127);
-        faceImage.getTexture().bind();
-        imgMesh.draw();
-        faceImage.getTexture().unbind();
-        ofPopMatrix();
-    }
 }
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
-    if(key == 'r') {
-        tracker.reset();
+    if(key == ' ') {
+        ofFile out("data.json", ofFile::WriteOnly);
+        out << "[";
+        for(int i = 0; i < trackedFrames.size(); i++) {
+            out << "{";
+            for(int j = 0; j < gestureCount; j++) {
+                out << gestureNames[j] << ":" << trackedGestures[i][j] << "," << endl;
+            }
+            out << "vertices: [";
+            for(int j = 0; j < trackedFrames[i].getNumVertices(); j++) {
+                out << "[" << ofVec2f(trackedFrames[i].getVertex(j)) << "]," << endl;
+            }
+            out << "]";
+            out << "},";
+        }
+        out << "]";
     }
 }
 

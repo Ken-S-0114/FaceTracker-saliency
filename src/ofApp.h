@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ofMain.h"
+#include "ofxOpenCv.h"
 #include "ofxFaceTracker.h"
 #include "ofxCv.h"
 
@@ -26,9 +27,8 @@ public:
     void dragEvent(ofDragInfo dragInfo);
     void gotMessage(ofMessage msg);
 
-    ofVideoGrabber cam;
+    ofVideoPlayer video;
     ofxFaceTracker tracker;
-    ofxFaceTracker imgTracker;
-    ofImage faceImage;
-    ofEasyCam easyCam;
+    vector<ofMesh> trackedFrames;
+    vector<vector<float> > trackedGestures;
 };
